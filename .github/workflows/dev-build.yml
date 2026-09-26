@@ -1,0 +1,36 @@
+name: Ditto development build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - perf-large-history-v1
+
+env:
+  SOLUTION_FILE_PATH: CP_Main_10.sln
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Restore NuGet packages
+        run: nuget restore ${{ env.SOLUTION_FILE_PATH }}
+
+      - name: Build x64 Release
+        run: msbuild ${{ env.SOLUTION_FILE_PATH }} /m /p:Configuration=Release /p:Platform=x64
+
+      - name: Upload test build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ditto-x64-large-history-v1
+          retention-days: 30
+          path: |
+            Release64\Ditto.exe
+            Release64\ICU_Loader.dll
+            Release64\Addins\DittoUtil.dll

@@ -1527,6 +1527,8 @@ BOOL CQPasteWnd::FillList(CString csSQLSearch)
 
 		m_stGroup.SetWindowText(theApp.m_GroupText);
 	}
+	// 排序值相同时使用主键稳定分页边界，避免跨页重复或遗漏。
+	csSort += _T(", Main.lID ASC");
 
 	CRect crRect;
 	GetClientRect(crRect);
@@ -1663,7 +1665,7 @@ BOOL CQPasteWnd::FillList(CString csSQLSearch)
 	sql.Format(_T("SELECT %s Main.lID, Main.mText, Main.lParentID, Main.lDontAutoDelete, ")
 		_T("Main.lShortCut, Main.bIsGroup, Main.QuickPasteText, Main.clipOrder, Main.clipGroupOrder, ")
 		_T("Main.stickyClipOrder, Main.stickyClipGroupOrder, Main.lDate, Main.lastPasteDate FROM Main %s ")
-		_T("where %s order by %s"), IsDistinct, dataJoin, strFilter, csSort);
+		_T("where %s"), IsDistinct, dataJoin, strFilter);
 
 
 	{
@@ -1678,12 +1680,13 @@ BOOL CQPasteWnd::FillList(CString csSQLSearch)
 	CPoint loadItem(-1, m_lstHeader.GetCountPerPage() + 2);
 	m_loadItems.push_back(loadItem);
 
-	m_thread.SetSearchSql(sql, countSql);
+	m_thread.SetSearchSql(sql, countSql, csSort, csSort.Find(_T("stickyClipGroupOrder")) >= 0);
 	m_thread.FireLoadItems(true);
 
 	MoveControls();
 
 	countSql.Replace(_T("%"), _T("%%"));
+	sql += _T(" order by ") + csSort;
 	sql.Replace(_T("%"), _T("%%"));
 	Log(StrF(_T("Start Fill List - Count SQL: %s, Query SQL: %s"), countSql, sql));
 
@@ -5761,7 +5764,7 @@ void CQPasteWnd::GetDispInfo(NMHDR* pNMHDR, LRESULT* pResult)
 
 					if (addToLoadItems)
 					{
-						CPoint loadItem(pItem->iItem, (m_lstHeader.GetTopIndex() + (m_lstHeader.GetCountPerPage() * 2)));
+						CPoint loadItem(pItem->iItem, (m_lstHeader.GetTopIndex() + (m_lstHeader.GetCountPerPage() * 3)));
 
 						//Log(StrF(_T("DrawItem index %d, add: %d"), loadItem.x, loadItem.y));
 						m_loadItems.push_back(loadItem);
@@ -6414,11 +6417,33 @@ LRESULT CQPasteWnd::OnSetListCount(WPARAM wParam, LPARAM lParam)
 {
 	m_noSearchResults = false;
 
-	int x = m_lstHeader.GetScrollPos(SB_HORZ);
-	int y = m_lstHeader.GetScrollPos(SB_VERT);
-	m_lstHeader.Scroll(CSize(-x, -y));
+	bool provisionalCount = lParam != 0;
+	bool listAlreadyVisible = provisionalCount == false && m_lstHeader.GetItemCount() > 0;
+
+	// 首屏先使用临时数量显示；完整数量返回时保留用户当前滚动位置。
+	if (listAlreadyVisible == false)
+	{
+		int x = m_lstHeader.GetScrollPos(SB_HORZ);
+		int y = m_lstHeader.GetScrollPos(SB_VERT);
+		m_lstHeader.Scroll(CSize(-x, -y));
+	}
 
 	m_lstHeader.SetItemCountEx((int)wParam);
+	if (provisionalCount)
+	{
+		SelectFocusID();
+		UpdateStatus(false);
+		MoveControls();
+		m_lstHeader.RefreshVisibleRows();
+		return TRUE;
+	}
+	if (listAlreadyVisible)
+	{
+		UpdateStatus(false);
+		MoveControls();
+		m_lstHeader.RefreshVisibleRows();
+		return TRUE;
+	}
 
 	if ((int)wParam == 0 &&
 		(m_strSearch != _T("") || m_bShowStarredClips))

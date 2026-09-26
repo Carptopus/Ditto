@@ -7,6 +7,34 @@
 #include <vector>
 #include <algorithm>
 
+static CString KeysetSql(const CString& baseSql, const CString& sortSql, long anchorId, bool groupSort)
+{
+	// The cursor comparison must match the Quick Paste ORDER BY exactly.
+	LPCTSTR stickyColumn = groupSort ? _T("stickyClipGroupOrder") : _T("stickyClipOrder");
+	LPCTSTR orderColumn = groupSort ? _T("clipGroupOrder") : _T("clipOrder");
+	CString anchorSticky = StrF(_T("(SELECT %s FROM Main WHERE lID = %ld)"), stickyColumn, anchorId);
+	CString anchorGroup = StrF(_T("(SELECT bIsGroup FROM Main WHERE lID = %ld)"), anchorId);
+	CString anchorOrder = StrF(_T("(SELECT %s FROM Main WHERE lID = %ld)"), orderColumn, anchorId);
+	CString sameSticky = StrF(_T("Main.%s = %s"), stickyColumn, (LPCTSTR)anchorSticky);
+	CString sameGroup = sameSticky + _T(" AND Main.bIsGroup = ") + anchorGroup;
+
+	// Mutually exclusive UNION ALL branches let SQLite seek into the composite index.
+	// A single OR expression makes SQLite scan from the start of the index.
+	CString sql = _T("SELECT * FROM (");
+	sql += baseSql + StrF(_T(" AND Main.%s < %s"), stickyColumn, (LPCTSTR)anchorSticky);
+	sql += _T(" UNION ALL ");
+	sql += baseSql + _T(" AND ") + sameSticky + _T(" AND Main.bIsGroup > ") + anchorGroup;
+	sql += _T(" UNION ALL ");
+	sql += baseSql + _T(" AND ") + sameGroup;
+	sql += StrF(_T(" AND Main.%s <= %s"), orderColumn, (LPCTSTR)anchorOrder);
+	sql += StrF(_T(" AND NOT (Main.%s = %s AND Main.lID <= %ld)"), orderColumn, (LPCTSTR)anchorOrder, anchorId);
+	sql += _T(") ORDER BY ");
+	CString outerSort = sortSql;
+	outerSort.Replace(_T("Main."), _T(""));
+	sql += outerSort;
+	return sql;
+}
+
 CQPasteWndThread::CQPasteWndThread(void)
 {
 	m_rowHeight = 0;
@@ -98,6 +126,9 @@ void CQPasteWndThread::OnLoadItems(void *param)
 	    int loadItemsCount = 0;
 	    int loadCount = 0;
 		CString localSql = m_sql;
+		CString sortSql = m_sortSql;
+		bool groupSort = m_groupSort;
+		long anchorId = -1;
 	    bool clearFirstLoadItem = false;
 		bool firstLoad = false;
 		int listSize = 0;
@@ -112,6 +143,10 @@ void CQPasteWndThread::OnLoadItems(void *param)
 		        loadItemsCount = pasteWnd->m_loadItems.begin()->y - pasteWnd->m_loadItems.begin()->x;
 		        pasteWnd->m_bStopQuery = false;
 				listSize = pasteWnd->m_listItems.size();
+				if (loadItemsIndex > 0 && loadItemsIndex - 1 < listSize)
+				{
+					anchorId = pasteWnd->m_listItems[loadItemsIndex - 1].m_lID;
+				}
 		        clearFirstLoadItem = true;
 		    }
 		}
@@ -123,8 +158,31 @@ void CQPasteWndThread::OnLoadItems(void *param)
 				Log(StrF(_T("Load Items start = %d, count = %d, list size: %d"), loadItemsIndex, loadItemsCount, listSize));
 
 				int pos = loadItemsIndex;
+				bool useKeyset = false;
+				if (anchorId > 0)
+				{
+					LPCTSTR stickyColumn = groupSort ? _T("stickyClipGroupOrder") : _T("stickyClipOrder");
+					LPCTSTR orderColumn = groupSort ? _T("clipGroupOrder") : _T("clipOrder");
+					CString anchorSql = StrF(_T("SELECT COUNT(*) FROM Main WHERE lID = %ld AND %s IS NOT NULL AND %s IS NOT NULL"), anchorId, stickyColumn, orderColumn);
+					useKeyset = theApp.m_db.execScalar(anchorSql) > 0;
+				}
+				if (useKeyset)
+				{
+					localSql = KeysetSql(localSql, sortSql, anchorId, groupSort);
+				}
+				else
+				{
+					localSql += _T(" order by ") + sortSql;
+				}
 				CString limit;
-				limit.Format(_T(" LIMIT %d OFFSET %d"), loadItemsCount, loadItemsIndex);
+				if (useKeyset)
+				{
+					limit.Format(_T(" LIMIT %d"), loadItemsCount);
+				}
+				else
+				{
+					limit.Format(_T(" LIMIT %d OFFSET %d"), loadItemsCount, loadItemsIndex);
+				}
 				localSql += limit;
 
 				CMainTable table;
@@ -195,17 +253,25 @@ void CQPasteWndThread::OnLoadItems(void *param)
 					pos++;
 				}
 
-				DWORD loadCount = GetTickCount() - startTick;
+				DWORD loadElapsed = GetTickCount() - startTick;
 				DWORD countCountStart = GetTickCount();
 				DWORD countCount = 0;
 				DWORD acceleratorCount = 0;
 
 				if(firstLoad)
 				{
+					// Display the first page before the full count finishes in the background.
+					::PostMessage(pasteWnd->m_hWnd, NM_SET_LIST_COUNT, pos, 1);
 					::PostMessage(pasteWnd->m_hWnd, NM_REFRESH_ROW, -2, 0);
-					//allow the next thread message to process, this should be the message to set the list count
-
-					OnSetListCount(param);
+					if (loadCount < loadItemsCount)
+					{
+						// The first query reached the end, so another COUNT is unnecessary.
+						::PostMessage(pasteWnd->m_hWnd, NM_SET_LIST_COUNT, pos, 0);
+					}
+					else
+					{
+						OnSetListCount(param);
+					}
 					
 					countCount = GetTickCount() - countCountStart;
 					DWORD acceleratorCountStart = GetTickCount();
@@ -226,7 +292,7 @@ void CQPasteWndThread::OnLoadItems(void *param)
 					pasteWnd->m_loadItems.erase(pasteWnd->m_loadItems.begin());
 				}
 
-				Log(StrF(_T("Load items End count = %d, Total Time = %d, LoadItems: %d, Count: %d, Accel: %d"), loadCount, GetTickCount() - startTick, loadCount, countCount, acceleratorCount));
+				Log(StrF(_T("Load items End count = %d, Total Time = %d, LoadItems: %d, Count: %d, Accel: %d, Keyset: %d"), loadCount, GetTickCount() - startTick, loadElapsed, countCount, acceleratorCount, useKeyset));
 			}
 			catch (CppSQLite3Exception& e)	\
 			{								\
