@@ -181,6 +181,8 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
     m_ulCopyGap = CGetSetOptions::GetCopyGap();
 
     theApp.AfterMainCreate();
+	// 启动完成后隐藏创建 Quick Paste，避免控件、字体、快捷键和线程初始化拖慢首次打开。
+	SetTimer(PRELOAD_QUICK_PASTE_TIMER, 1000, 0);
 
     m_thread.Start(this);
 
@@ -869,6 +871,18 @@ void CMainFrame::OnTimer(UINT_PTR nIDEvent)
 			KillTimer(CLOSE_NO_DB_WINDOW_TIMER);
 			theApp.CloseNoDbWindow();
 			break;
+
+		case PRELOAD_QUICK_PASTE_TIMER:
+		{
+			KillTimer(PRELOAD_QUICK_PASTE_TIMER);
+			if (m_quickPaste.m_pwndPaste == NULL)
+			{
+				DWORD startTick = GetTickCount();
+				m_quickPaste.Create(this);
+				Log(StrF(_T("Preloaded Quick Paste window in %d ms"), GetTickCount() - startTick));
+			}
+		}
+		break;
 
     }
 

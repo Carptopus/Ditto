@@ -1459,6 +1459,7 @@ void CQPasteWnd::UpdateStatus(bool bRepaintImmediately)
 BOOL CQPasteWnd::FillList(CString csSQLSearch)
 {
 	KillTimer(TIMER_DO_SEARCH);
+	bool defaultView = csSQLSearch.IsEmpty() && m_bShowStarredClips == false;
 
 	m_lstHeader.HidePopup(true);
 
@@ -1658,14 +1659,39 @@ BOOL CQPasteWnd::FillList(CString csSQLSearch)
 
 	CString sql;
 	CString countSql;
+	CString indexHint;
+	if (defaultView)
+	{
+		// 首页按列表顺序读取少量记录。明确指定排序索引，避免 SQLite 先按筛选索引
+		// 扫描大量记录，再为 ORDER BY 建立临时排序表。
+		if (theApp.m_GroupID >= 0)
+		{
+			indexHint = _T("INDEXED BY Main_InGroup2");
+		}
+		else if (CGetSetOptions::m_bShowAllClipsInMainList)
+		{
+			if (CGetSetOptions::GetShowGroupsInMainList())
+			{
+				indexHint = _T("INDEXED BY Main_TopLevel");
+			}
+			else
+			{
+				indexHint = _T("INDEXED BY Main_NoGroup2");
+			}
+		}
+		else
+		{
+			indexHint = _T("INDEXED BY Main_TopLevelParentID");
+		}
+	}
 
 	//Format the count and select sql queries for the thread
 	countSql.Format(_T("SELECT COUNT(%s Main.lID) FROM Main %s where %s"), IsDistinct, dataJoin, strFilter);
 
 	sql.Format(_T("SELECT %s Main.lID, Main.mText, Main.lParentID, Main.lDontAutoDelete, ")
 		_T("Main.lShortCut, Main.bIsGroup, Main.QuickPasteText, Main.clipOrder, Main.clipGroupOrder, ")
-		_T("Main.stickyClipOrder, Main.stickyClipGroupOrder, Main.lDate, Main.lastPasteDate FROM Main %s ")
-		_T("where %s"), IsDistinct, dataJoin, strFilter);
+		_T("Main.stickyClipOrder, Main.stickyClipGroupOrder, Main.lDate, Main.lastPasteDate FROM Main %s %s ")
+		_T("where %s"), IsDistinct, indexHint, dataJoin, strFilter);
 
 
 	{

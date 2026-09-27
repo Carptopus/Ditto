@@ -28,7 +28,7 @@ jobs:
       - name: Upload test build
         uses: actions/upload-artifact@v4
         with:
-          name: Ditto-x64-large-history-v1
+          name: Ditto-x64-large-history
           retention-days: 30
           path: |
             Release64\Ditto.exe

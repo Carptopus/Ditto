@@ -46,10 +46,22 @@ void CQuickPaste::Create(CWnd *pParent)
 	CGetSetOptions::GetQuickPasteSize(csSize);
 
 	CRect crRect = CRect(point, csSize);
+	CWnd *pLocalParent = pParent;
+	if(CGetSetOptions::GetShowInTaskBar())
+	{
+		pLocalParent = NULL;
+	}
+
 	// Create the window
-	ASSERT( m_pwndPaste->Create(crRect, pParent) );
+	VERIFY( m_pwndPaste->Create(crRect, pLocalParent) );
+	crRect.right = crRect.left + m_pwndPaste->m_DittoWindow.m_dpi.Scale(crRect.Width());
+	crRect.bottom = crRect.top + m_pwndPaste->m_DittoWindow.m_dpi.Scale(crRect.Height());
+	if(CGetSetOptions::m_bEnsureEntireWindowCanBeSeen)
+	{
+		EnsureWindowVisible(&crRect);
+	}
 	// place it at the previous position and size
-	m_pwndPaste->MoveWindow(CRect(point, csSize));
+	m_pwndPaste->MoveWindow(crRect);
 
 	Log(_T("Creating QPasteWnd"));
 }
