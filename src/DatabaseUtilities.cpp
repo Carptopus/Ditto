@@ -203,11 +203,12 @@ BOOL OpenDatabase(CString dbPath)
 		auto rootType = path.GetRootType(&len);
 		auto driveLetter = path.GetDriveLetter();
 
-		theApp.m_databaseOnNetworkShare = false;
-		if (rootType == ERootType::rtServerShare ||
-			((rootType == ERootType::rtDriveCur || rootType == rtDriveRoot) && driveLetter >= 'A' && driveLetter != 'C'))
+		theApp.m_databaseOnNetworkShare = rootType == ERootType::rtServerShare;
+		if ((rootType == ERootType::rtDriveCur || rootType == rtDriveRoot) && driveLetter >= 'A')
 		{
-			theApp.m_databaseOnNetworkShare = true;
+			CString driveRoot;
+			driveRoot.Format(_T("%c:\\"), driveLetter);
+			theApp.m_databaseOnNetworkShare = ::GetDriveType(driveRoot) == DRIVE_REMOTE;
 		}
 
 

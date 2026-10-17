@@ -139,8 +139,6 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
     Log(_T("Setting polling timer to track focus"));
     SetTimer(ACTIVE_WINDOW_TIMER, CGetSetOptions::FocusWndTimerTimeout(), 0);
 
-	SetTimer(READ_RANDOM_DB_FILE, CGetSetOptions::ReadRandomFileInterval() * 1000, 0);
-
     SetWindowText(_T("Ditto"));
 	
 	m_trayIcon.Create(this, IDR_MENU, _T("Ditto"), CTrayNotifyIcon::LoadIcon(IDR_MAINFRAME), WM_TRAYNOTIFY, 0, 1);
@@ -795,12 +793,6 @@ void CMainFrame::OnTimer(UINT_PTR nIDEvent)
 				{
 					theApp.m_activeWnd.TrackActiveWnd(false);
 				}
-			}
-			break;
-
-		case READ_RANDOM_DB_FILE:
-			{
-				m_thread.FireReadDbFile();
 			}
 			break;
 

@@ -2463,16 +2463,6 @@ int CGetSetOptions::GetRequestFilesUsingIP()
 	return GetProfileLong(_T("RequestFilesUsingIP"), 0);
 }
 
-int CGetSetOptions::ReadRandomFileInterval()
-{
-	return GetProfileLong(_T("ReadRandomFileInterval"), 60);
-}
-
-int CGetSetOptions::ReadRandomFileIdleMin()
-{
-	return GetProfileLong(_T("ReadRandomFileIdleMin"), 30);
-}
-
 BOOL CGetSetOptions::GetShowGroupsInMainList()
 {
 	return GetProfileLong(_T("ShowGroupsInMainList"), 0);
