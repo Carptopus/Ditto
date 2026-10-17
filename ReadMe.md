@@ -4,7 +4,12 @@
 
 本分支针对十万级剪贴板历史下 Quick Paste 首次打开、首屏加载和连续滚动迟缓的问题进行了优化，同时保留 Ditto 原有的单 SQLite 数据库和数据格式。
 
-[下载 `large-history-v1` x64 增量更新包](https://github.com/Carptopus/Ditto/releases/tag/large-history-v1)
+## 下载
+
+1. [直接下载 `Ditto-x64-large-history-v1.zip`](https://github.com/Carptopus/Ditto/releases/download/large-history-v1/Ditto-x64-large-history-v1.zip)
+2. [查看 `large-history-v1` Release 说明](https://github.com/Carptopus/Ditto/releases/tag/large-history-v1)
+
+SHA-256：`3D73E2B77C048520127B90CA3705E49ABDFE527F4FC4491383641EAA65C65EB8`
 
 这是 `Carptopus/Ditto` Fork 的测试构建，不是上游官方安装包。更新包包含 `Ditto.exe`、`ICU_Loader.dll` 和 `Addins/DittoUtil.dll`，需要在 Ditto 正常退出后覆盖现有文件；不会包含或覆盖 `Ditto.Settings`、语言文件、主题及剪贴板数据库。
 
