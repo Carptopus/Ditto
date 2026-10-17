@@ -103,7 +103,20 @@ void CQPasteWndThread::OnSetListCount(void *param)
 
     try
     {
-        lRecordCount = theApp.m_db.execScalar(countSQL);
+		CString countDbPath = CGetSetOptions::GetDBPath();
+		if (m_countDb.IsDatabaseOpen() == false || m_countDbPath.CompareNoCase(countDbPath) != 0)
+		{
+			m_countDb.close();
+			m_countDb.open(countDbPath);
+			m_countDb.setBusyTimeout(CGetSetOptions::GetDbTimeout());
+			m_countDb.SetRegexCaseInsensitive(CGetSetOptions::GetRegexCaseInsensitive());
+			// 完整计数只读且可能耗时较长，使用独立连接，避免占用剪贴板保存和预览共用的主连接。
+			m_countDb.execDML(_T("PRAGMA query_only = 1"));
+			m_countDbPath = countDbPath;
+			Log(StrF(_T("Opened Quick Paste count database: %s"), countDbPath));
+		}
+
+		lRecordCount = m_countDb.execScalar(countSQL);
         ::PostMessage(pasteWnd->m_hWnd, NM_SET_LIST_COUNT, lRecordCount, 0);
     }
     CATCH_SQLITE_EXCEPTION 

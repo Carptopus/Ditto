@@ -72,4 +72,6 @@ protected:
     CString m_countSql;
     CString m_sortSql;
     bool m_groupSort = false;
+	CppSQLite3DB m_countDb;
+	CString m_countDbPath;
 };
